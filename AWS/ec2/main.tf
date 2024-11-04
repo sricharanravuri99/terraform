@@ -1,9 +1,12 @@
-resource "aws_instance" "example" {
-    ami           = var.ami_id
-    instance_type = var.instance_type
-    key_name      = var.key_name
+provider "aws" {
+  region = "us-east-1" 
+}
 
-    tags = {
-        Name = var.instance_name
-    }
+module "ec2_instance" {
+  source = "./modules/ec2"
+
+  ami_id        = var.ami_id
+  instance_type = var.instance_type
+  key_name      = var.key_name
+  instance_name = var.instance_name
 }
