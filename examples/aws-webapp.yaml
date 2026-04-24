@@ -1,0 +1,72 @@
+# AWS Web Application stack — compliant baseline
+# Generate: python -m generator.main generate --config examples/aws-webapp.yaml --output ./output --compliance all
+
+provider: aws
+
+tags:
+  Environment: production
+  Project: web-app
+  Owner: platform-team
+  CostCenter: eng-001
+
+modules:
+
+  - type: vpc
+    name: web-app-vpc
+    vpc_cidr: "10.0.0.0/16"
+    availability_zones: ["us-east-1a", "us-east-1b", "us-east-1c"]
+    public_subnet_cidrs:   ["10.0.1.0/24",  "10.0.2.0/24",  "10.0.3.0/24"]
+    private_subnet_cidrs:  ["10.0.11.0/24", "10.0.12.0/24", "10.0.13.0/24"]
+    database_subnet_cidrs: ["10.0.21.0/24", "10.0.22.0/24", "10.0.23.0/24"]
+    enable_nat_gateway: true
+    enable_flow_logs: true
+    flow_log_retention_days: 365
+    # kms_key_arn: "arn:aws:kms:us-east-1:123456789012:key/..."
+
+  - type: s3
+    name: web-app-assets
+    bucket_name: web-app-assets-prod-unique
+    versioning_enabled: true
+    access_logging_enabled: true
+    enforce_tls: true
+    block_public_access: true
+    lifecycle_rules:
+      - id: tier-old-objects
+        transitions:
+          - days: 30
+            storage_class: STANDARD_IA
+          - days: 90
+            storage_class: GLACIER
+        noncurrent_version_expiration_days: 90
+
+  - type: rds
+    name: web-app-db
+    engine: postgres
+    engine_version: "15.4"
+    instance_class: db.m6i.large
+    database_name: appdb
+    master_username: dbadmin
+    master_password: REPLACE_WITH_SECRETS_MANAGER
+    multi_az: true
+    backup_retention_days: 14
+    deletion_protection: true
+    publicly_accessible: false
+    encryption_at_rest: true
+    monitoring_interval: 60
+    performance_insights_enabled: true
+    cloudwatch_logs_exports: ["postgresql", "upgrade"]
+
+  - type: iam
+    name: web-app-ec2-role
+    role_name: web-app-ec2-role
+    trust_services: ["ec2.amazonaws.com"]
+    policy_statements:
+      - sid: S3ReadAssets
+        actions: ["s3:GetObject", "s3:ListBucket"]
+        resources:
+          - "arn:aws:s3:::web-app-assets-prod-unique"
+          - "arn:aws:s3:::web-app-assets-prod-unique/*"
+      - sid: SecretsManagerRead
+        actions: ["secretsmanager:GetSecretValue"]
+        resources: ["arn:aws:secretsmanager:us-east-1:*:secret:web-app/*"]
+    create_instance_profile: true

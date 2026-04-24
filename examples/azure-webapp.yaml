@@ -1,0 +1,70 @@
+# Azure Web Application stack — CIS compliant baseline
+# Generate: python -m generator.main generate --config examples/azure-webapp.yaml --output ./output --compliance cis,hipaa
+
+provider: azure
+
+tags:
+  Environment: production
+  Project: web-app
+  Owner: platform-team
+  CostCenter: eng-001
+
+modules:
+
+  - type: vnet
+    name: web-app-vnet
+    location: eastus
+    resource_group_name: rg-web-app
+    address_space: ["10.0.0.0/16"]
+    enable_ddos_protection: true
+    enable_network_watcher: true
+    enable_flow_logs: true
+    flow_log_retention_days: 90
+    subnets:
+      app-subnet:
+        address_prefix: "10.0.1.0/24"
+        service_endpoints: ["Microsoft.Storage", "Microsoft.KeyVault", "Microsoft.Sql"]
+        nsg_rules:
+          - name: AllowHTTPS
+            priority: 100
+            direction: Inbound
+            access: Allow
+            protocol: Tcp
+            destination_port_range: "443"
+            source_address_prefix: "AzureLoadBalancer"
+            destination_address_prefix: "*"
+      db-subnet:
+        address_prefix: "10.0.11.0/24"
+        nsg_rules: []
+
+  - type: storage
+    name: web-app-storage
+    storage_account_name: webappprodsa001
+    location: eastus
+    resource_group_name: rg-web-app
+    account_tier: Standard
+    replication_type: ZRS
+    https_traffic_only: true
+    min_tls_version: TLS1_2
+    infrastructure_encryption: true
+    shared_access_key_enabled: false
+    blob_soft_delete_enabled: true
+    blob_soft_delete_days: 14
+    versioning_enabled: true
+    network_rules_default_action: Deny
+
+  - type: aks
+    name: web-app-aks
+    location: eastus
+    resource_group_name: rg-web-app
+    kubernetes_version: "1.29"
+    private_cluster_enabled: true
+    rbac_enabled: true
+    azure_policy_enabled: true
+    enable_oms_agent: true
+    sku_tier: Standard
+    automatic_channel_upgrade: stable
+    system_node_vm_size: Standard_D4s_v3
+    system_min_count: 2
+    system_max_count: 5
+    outbound_type: userDefinedRouting

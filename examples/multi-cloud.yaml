@@ -1,0 +1,89 @@
+# Multi-cloud example — AWS primary + GCP DR + Azure storage
+# Demonstrates provider-per-module override
+# Generate: python -m generator.main generate --config examples/multi-cloud.yaml --output ./output --compliance all
+
+tags:
+  Environment: production
+  Project: multi-cloud-app
+  Owner: platform-team
+  CostCenter: eng-001
+
+modules:
+
+  # ── AWS Primary Region ────────────────────────────────────────────────────
+  - provider: aws
+    type: vpc
+    name: primary-vpc
+    vpc_cidr: "10.0.0.0/16"
+    availability_zones: ["us-east-1a", "us-east-1b", "us-east-1c"]
+    public_subnet_cidrs:   ["10.0.1.0/24",  "10.0.2.0/24",  "10.0.3.0/24"]
+    private_subnet_cidrs:  ["10.0.11.0/24", "10.0.12.0/24", "10.0.13.0/24"]
+    database_subnet_cidrs: ["10.0.21.0/24", "10.0.22.0/24", "10.0.23.0/24"]
+    enable_nat_gateway: true
+    enable_flow_logs: true
+    flow_log_retention_days: 365
+
+  - provider: aws
+    type: eks
+    name: primary-eks
+    kubernetes_version: "1.29"
+    endpoint_public_access: false
+    secrets_encryption: true
+    enable_logging: true
+    node_group_encryption: true
+    node_groups:
+      general:
+        instance_types: ["m6i.large", "m5.large"]
+        desired_size: 3
+        min_size: 2
+        max_size: 20
+
+  - provider: aws
+    type: rds
+    name: primary-rds
+    engine: postgres
+    engine_version: "15.4"
+    instance_class: db.m6i.large
+    multi_az: true
+    backup_retention_days: 14
+    deletion_protection: true
+    publicly_accessible: false
+    encryption_at_rest: true
+
+  - provider: aws
+    type: s3
+    name: app-assets-aws
+    bucket_name: multi-cloud-app-assets-prod
+    versioning_enabled: true
+    access_logging_enabled: true
+    block_public_access: true
+    enforce_tls: true
+
+  # ── GCP Disaster Recovery Region ─────────────────────────────────────────
+  - provider: gcp
+    type: vpc
+    name: dr-vpc
+    project_id: my-gcp-dr-project
+    enable_cloud_nat: true
+    enable_flow_logs: true
+    auto_create_subnetworks: false
+    subnets:
+      dr-subnet:
+        region: us-west1
+        cidr: "10.10.1.0/24"
+
+  # ── Azure Cold Storage (archival / compliance) ────────────────────────────
+  - provider: azure
+    type: storage
+    name: compliance-archive
+    storage_account_name: mcapparchivesa001
+    location: eastus2
+    resource_group_name: rg-multi-cloud-archive
+    replication_type: GRS
+    https_traffic_only: true
+    min_tls_version: TLS1_2
+    infrastructure_encryption: true
+    shared_access_key_enabled: false
+    versioning_enabled: true
+    blob_soft_delete_days: 90
+    network_rules_default_action: Deny

@@ -1,0 +1,11 @@
+output/
+__pycache__/
+*.pyc
+*.pyo
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.backup
+*.tfvars
+!*.tfvars.example
+.env

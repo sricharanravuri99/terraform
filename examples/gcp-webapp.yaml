@@ -1,0 +1,60 @@
+# GCP Web Application stack — CIS compliant baseline
+# Generate: python -m generator.main generate --config examples/gcp-webapp.yaml --output ./output --compliance cis,pci-dss
+
+provider: gcp
+
+tags:
+  environment: production
+  project: web-app
+  owner: platform-team
+  cost_center: eng-001
+
+modules:
+
+  - type: vpc
+    name: web-app-vpc
+    project_id: my-gcp-project
+    routing_mode: REGIONAL
+    enable_cloud_nat: true
+    enable_iap_firewall: true
+    enable_flow_logs: true
+    private_google_access: true
+    auto_create_subnetworks: false
+    subnets:
+      app-subnet-us-central1:
+        region: us-central1
+        cidr: "10.0.1.0/24"
+        secondary_ranges:
+          - name: pods
+            cidr: "10.100.0.0/18"
+          - name: services
+            cidr: "10.101.0.0/20"
+      db-subnet-us-central1:
+        region: us-central1
+        cidr: "10.0.11.0/24"
+
+  - type: gke
+    name: web-app-gke
+    project_id: my-gcp-project
+    location: us-central1
+    kubernetes_version: "1.29"
+    private_cluster: true
+    enable_private_endpoint: false
+    workload_identity: true
+    network_policy_enabled: true
+    shielded_nodes: true
+    release_channel: REGULAR
+    deletion_protection: true
+    master_ipv4_cidr_block: "172.16.0.0/28"
+    master_authorized_networks:
+      - cidr: "10.0.0.0/8"
+        name: internal
+    # secrets_encryption_key: "projects/my-project/locations/us-central1/keyRings/gke/cryptoKeys/secrets"
+    node_pools:
+      general:
+        machine_type: e2-standard-4
+        min_count: 2
+        max_count: 20
+        disk_size_gb: 100
+        labels:
+          workload: general
